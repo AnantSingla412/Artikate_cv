@@ -11,10 +11,10 @@ from pathlib import Path
 
 random.seed(42)  # fixed seed so the split is reproducible
 
-RAW_IMAGES = Path("data/raw/images")
-RAW_LABELS = Path("data/raw/labels")
-TRAIN_DIR = Path("data/train")
-VAL_DIR = Path("data/val")
+RAW_IMAGES = Path(r"E:\artikate\data\raw\images")
+RAW_LABELS = Path(r"E:\artikate\data\raw\labels")
+TRAIN_DIR = Path(r"E:\artikate\data\train")
+VAL_DIR = Path(r"E:\artikate\data\val")
 VAL_RATIO = 0.2
 
 
