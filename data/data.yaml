@@ -1,4 +1,4 @@
-path: .
+path: E:/artikate/data
 train: train/images
 val: val/images
 

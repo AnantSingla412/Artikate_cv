@@ -15,3 +15,17 @@ Two-class object detector (case, speaker) trained on a self-captured dataset.
 ## Annotation
 - Tool used: Roboflow
 - Format: YOLOv8 (bounding boxes)
+
+## Training Configuration — Run 1
+ config for Run 1 (yolov8n, imgsz=640, epochs=100, batch=16, seed=42).
+
+## Validation Results — Run 1 
+| Metric       | Run 1 | 
+|--------------|-------|
+| Precision    | 0.980 |
+| Recall       |  0.962|
+| mAP@0.5      | 0.990 |
+| mAP@0.5:0.95 | 0.858 |
+
+## Known Gaps
+- Validation mAP (0.99) is measured on only 19 images — a small sample size
