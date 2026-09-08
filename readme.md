@@ -47,7 +47,89 @@ Verified ONNX Runtime output against PyTorch on all 18 validation images.
   `best_run2.pt` (PyTorch) and `best_run2.onnx` (ONNX Runtime, CPUExecutionProvider),
   comparing box coordinates (as % of image dimension) and confidence scores.
 
-### Quantization
-Reduced-precision format used: **FP16** (not INT8).
-Reason: INT8 quantization requires a calibration dataset and additional
-tooling (e.g. representative-sample calibration in ONNX Runtime)
+## Export & Quantization
+
+### Reduced-Precision Format
+FP16 chosen over INT8. INT8 requires a calibration dataset and additional
+tooling (representative-sample calibration in ONNX Runtime), which was not
+justified given the dataset size and available time. FP16 is natively
+supported by Ultralytics' export pipeline and by ONNX Runtime, and is a
+well-supported target for edge devices such as Jetson.
+
+### Benchmark: FP32 vs FP16
+
+**1. Local CPU (AMD Ryzen 5 5500U, CPUExecutionProvider):**
+
+| Metric            | FP32    | FP16   |
+|--------------------------------------|
+| Mean latency (ms) | 299.43  | 306.71 |
+| P95 latency (ms)  | 347.58  | 367.62 |
+| Model size (MB)   | 11.70   | 5.88   |
+| mAP@0.5           | 0.9438  | 0.9438 |
+
+**2. Colab CPU (consistency check):** Attempted on Colab's T4 GPU runtime,
+but ONNX Runtime's default CPU-only package (`onnxruntime`, not
+`onnxruntime-gpu`) was installed, so this run also executed on CPU
+(confirmed by a "CUDAExecutionProvider not available" warning). Results
+were consistent with the local run:
+
+| Metric            | FP32   | FP16   |
+|-------------------------------------|
+| Mean latency (ms) | 242.58 | 266.19 |
+| P95 latency (ms)  | 284.11 | 319.69 |
+| Model size (MB)   | 11.70  | 5.88   |
+| mAP@0.5           | 0.9438 | 0.9438 |
+
+**3. Colab GPU (Tesla T4, CUDAExecutionProvider — corrected `onnxruntime-gpu` install):**
+
+| Metric                                | FP32  | FP16  |
+|-------------------                    ----------------|
+| Mean latency (ms)                     | 9.78  | 9.27  |
+| P95 latency (ms)                      | 10.41 | 10.56 |
+| FPS                                   | 102.24| 107.91|
+| mAP@0.5 (Ultralytics `.val()`)        |not run|not run|
+| mAP@0.5 (custom per-class AP script)  | 0.9904 |0.9435|
+
+### Accuracy Discrepancy Between Evaluation Methods
+
+Ultralytics' `.val()` wrapper was unreliable when run directly against
+exported ONNX files on GPU in this environment, so a custom per-class AP
+script was written (raw ONNX Runtime inference + manual NMS + AP@0.5
+calculation) to cross-check accuracy on GPU:
+
+
+This custom script shows a real accuracy drop specifically on the "case"
+class after FP16 quantization (-9.4 points AP), which the CPU benchmarks
+above (using Ultralytics' `.val()` wrapper) did not detect — those reported
+identical mAP (0.9438) for FP32 and FP16.
+
+Caveat: the custom script used a low confidence threshold (0.001)
+before NMS, producing an unusually high raw prediction count (~100+ per
+image), which suggests its NMS pass may not exactly replicate Ultralytics'
+internal evaluation pipeline. The two methods therefore disagree on
+whether FP16 causes any accuracy loss. This was not fully resolved given
+time constraints — it is reported here rather than silently picking the
+more favorable number, and would need further investigation (e.g.
+visualizing raw pre-NMS predictions) before trusting either number for a
+production decision.
+
+### Analysis
+Accuracy impact of FP16 is inconclusive: CPU runs (via Ultralytics' `.val()`)
+showed no accuracy drop, while a custom GPU evaluation showed a real,
+class-specific drop on "case" (see discrepancy section above). This
+inconsistency itself is a useful finding — it shows that quantization's
+accuracy impact can depend on which evaluation pipeline is used, not just
+which hardware.
+
+Latency behaved differently by hardware: on both CPU runs, FP16 was
+slightly *slower* than FP32, since consumer/server CPUs generally lack
+native FP16 arithmetic — ONNX Runtime upcasts FP16 tensors back to FP32
+internally, adding conversion overhead with no compute benefit. On GPU
+(Tesla T4, which has native FP16 tensor cores), FP16 shows the expected
+improvement: ~5% lower mean latency and ~5% higher throughput (102 → 108
+FPS) versus FP32.
+
+
+Model size is hardware-independent: FP16 halves file size (11.70 MB → 5.88
+MB) in all cases, useful for storage and transfer regardless of runtime
+speed.
