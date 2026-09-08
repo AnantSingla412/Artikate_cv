@@ -46,3 +46,8 @@ Verified ONNX Runtime output against PyTorch on all 18 validation images.
 - Confirmed via: side-by-side inference on the same images through both
   `best_run2.pt` (PyTorch) and `best_run2.onnx` (ONNX Runtime, CPUExecutionProvider),
   comparing box coordinates (as % of image dimension) and confidence scores.
+
+### Quantization
+Reduced-precision format used: **FP16** (not INT8).
+Reason: INT8 quantization requires a calibration dataset and additional
+tooling (e.g. representative-sample calibration in ONNX Runtime)

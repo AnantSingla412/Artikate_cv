@@ -1,8 +1,6 @@
 """
 Exports a reduced-precision (FP16) ONNX version of the trained model.
-FP16 chosen over INT8 because INT8 requires a calibration dataset and
-extra tooling, which isn't justified given the dataset size and time
-budget here. FP16 halves model size and is well supported by ONNX
+FP16 chosen over INT8. FP16 halves model size and is well supported by ONNX
 Runtime and edge targets like Jetson.
 
 Run from repo root: python scripts/quantize.py
