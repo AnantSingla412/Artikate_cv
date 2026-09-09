@@ -226,4 +226,54 @@ Track a **rolling weekly average of model confidence scores** for accepted detec
 **Specific signal:** compute the 7-day rolling mean of detection confidence scores, compared against a baseline established during the first month of stable deployment (e.g., baseline mean = 0.93). **Threshold:** fire an alert if the 7-day rolling mean drops more than 5-7% relative to baseline (e.g., below ~0.86) sustained for 3+ consecutive days (to avoid alerting on a single noisy day). This is cheap to compute (no ground truth needed, just logging confidence scores already produced during inference) and would have caught a 3-month gradual decline within roughly two weeks of it starting, well before it reached a 13-point accuracy drop.
 
 ---
+# Part D — Answers (ANSWERS.md)
+
+---
+
+## 1. Aggregate Detection Throughput Required
+
+8 cameras × 15 fps each = **120 frames per second aggregate**, if every frame from every camera must be processed.
+
+```
+8 cameras × 15 fps = 120 FPS aggregate throughput required
+```
+
+This is the number the single Orin must sustain across all 8 streams combined, not per stream.
+
+## 2. Model Family, Precision, and Fit
+
+**Choice: YOLOv8n (nano) at FP16, using TensorRT for inference on the Orin.**
+
+**Reasoning for throughput fit:**
+The 200ms latency budget is per-frame, but the binding constraint is actually aggregate throughput (120 FPS), not single-frame latency — a single Orin serving 8 streams needs to process one frame roughly every 1000/120 ≈ **8.3ms** on average to keep up in steady state, well inside the 200ms per-frame latency ceiling. This means the real design question is throughput capacity, and latency budget is comfortably satisfied as long as throughput is met (any single frame's actual end-to-end latency, including queueing, will be well under 200ms if the pipeline isn't backlogged).
+
+YOLOv8n is the smallest YOLOv8 variant, chosen specifically because:
+- Jetson AGX Orin (64GB variant) has published benchmarks in the range of several hundred FPS for YOLOv8n at FP16/INT8 with TensorRT at 640×640 input — comfortably above the 120 FPS aggregate target, leaving headroom for preprocessing, postprocessing (NMS), and multi-stream overhead which are not free.
+- FP16 (not INT8) is the safer starting choice here: Orin has native FP16 tensor cores (unlike the CPU case in Part A), giving a real throughput benefit without the calibration-data risk and potential accuracy loss INT8 introduced in this very assignment's own benchmark (Part A showed FP16 was accuracy-neutral where INT8 wasn't attempted). Given the air-gapped, hard-to-patch deployment context, minimizing accuracy risk outweighs squeezing out extra throughput margin.
+
+**Important caveat, stated explicitly as instructed:** I have not benchmarked YOLOv8n at FP16 on an actual Orin with this exact 8-stream concurrent-decode + inference + NMS pipeline — published single-stream FPS numbers do not automatically account for 8 concurrent RTSP/video decode pipelines competing for the same GPU and memory bandwidth. **The single measurement I would take first:** run the actual TensorRT-optimized YOLOv8n engine on the target Orin with all 8 real camera feeds decoding and running concurrently (not just synthetic single-stream throughput), and measure sustained end-to-end aggregate FPS and per-frame latency distribution (especially p95/p99, not just mean) over a realistic multi-minute window — this is the only way to know if video decode contention or memory bandwidth becomes the real bottleneck rather than raw model inference speed.
+
+## 3. Retraining Loop Under a Hard Air-Gap
+
+1. **Operator flagging:** the inspection UI includes a simple "flag" button next to each detection result (or a periodic review screen showing recent detections) — operator taps "false positive" or "missed defect" and the flagged frame + model output + operator's correction is saved locally to a dedicated `flagged/` directory on the on-prem server, tagged with timestamp and camera ID. No manual re-annotation is required at flag time — just marking it for later review, to keep operator friction low.
+
+2. **Feedback reaching a training environment:** since there's no internet, the flagged data must move via **physical media** — a USB drive or removable SSD, following a defined pickup schedule (e.g., weekly), carried by an authorized person from the on-prem server to a separate, non-air-gapped training environment (offsite, e.g. at Artikate's own infrastructure). This transfer should include a checksum manifest so data integrity can be verified after transfer, and the transferred data should be treated as write-once/read-only at the training end to preserve an audit trail of exactly what came from the site.
+
+3. **Validating a new model before it replaces the running one:**
+   - Retrain/fine-tune offline in the training environment using the newly-labeled flagged data merged with the existing training set (not replacing it, to avoid catastrophic forgetting of previously-learned cases).
+   - Evaluate the candidate model against a **fixed, held-out validation set that never changes** (kept from the original deployment) plus the newly flagged cases, to confirm both that general performance hasn't regressed and that the specific flagged failure modes are now handled correctly.
+   - Only if the candidate model meets or exceeds the currently-deployed model's metrics on both sets does it get packaged (weights + config + a version tag) for transfer back to site — again via physical media, with a checksum.
+   - On-site, the new model is deployed to a **staging/shadow mode** first: it runs in parallel with the currently-live model on real incoming frames (not yet controlling any real line action), and its outputs are logged and compared against the live model's outputs for a defined burn-in period (e.g., a few days) before an operator/engineer manually promotes it to replace the production model.
+
+## 4. Rollback Plan
+
+**Detection speed:** the shadow-mode comparison in step 3 is the primary defense — since the new model runs in parallel before full promotion, most regressions should be caught before ever reaching production. But for regressions that only appear after full promotion (e.g., triggered by a real environmental factor not present during the shadow period), detection relies on the same lightweight monitoring signal described in Part C3: a rolling confidence-score baseline. **Signal that triggers rollback:** if the 7-day (or shorter, e.g. 48-hour, given how critical a defect line is) rolling average confidence score drops more than a defined threshold (e.g., 5-7%) relative to the established post-deployment baseline, or if a manual operator flag rate spikes noticeably above its recent historical rate, that triggers an alert for human review.
+
+**Rollback mechanism:** the previous production model's weights are never deleted — they're kept on-site as the "last known good" version alongside the new one, so rollback is simply a config/symlink swap back to the previous model file, restartable within minutes without needing any network access or re-transfer of data. This requires disciplined versioning (never overwrite a deployed model file in place) as a hard operational rule.
+
+## 5. Least Confident Part, and What's Needed to Resolve It
+
+**Least confident: whether YOLOv8n at FP16 via TensorRT actually sustains 120 FPS aggregate across 8 concurrent real RTSP decode + inference + NMS pipelines on a single Orin**, as opposed to single-stream synthetic benchmarks. Video decode (especially if streams arrive H.264/H.265 encoded and need on-device decode before inference), memory bandwidth sharing across 8 concurrent CUDA contexts, and NMS/postprocessing overhead at this frame rate are all real-world factors that don't show up in simple single-image inference benchmarks, and I have not been able to test this directly.
+
+**What's needed to resolve it:** direct benchmarking with the actual target hardware, actual camera feeds (or realistic recorded 1080p/15fps footage played back to simulate them), and the full intended software stack (DeepStream or equivalent multi-stream pipeline, not just a bare model loop) running all 8 streams concurrently, measuring sustained throughput and full latency distribution over an extended real-world test window before committing to this configuration for production.
 

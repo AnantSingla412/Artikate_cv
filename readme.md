@@ -133,3 +133,62 @@ FPS) versus FP32.
 Model size is hardware-independent: FP16 halves file size (11.70 MB → 5.88
 MB) in all cases, useful for storage and transfer regardless of runtime
 speed.
+
+---
+## How to Reproduce
+
+### 1. Environment setup
+```bash
+python -m venv venv
+source venv/bin/activate        # venv\Scripts\activate on Windows
+pip install -r requirements.txt
+```
+
+### 2. Dataset split
+Raw images and Roboflow-exported YOLO labels are already committed under
+`data/raw/`. Generate the train/val split:
+```bash
+python scripts/split_dataset.py
+```
+This creates `data/train/` and `data/val/` (75/18 images, seed=42).
+
+### 3. Train the detector
+Training was run on Google Colab (Tesla T4 GPU). To reproduce:
+```bash
+python scripts/train.py --epochs 100 --batch 16 --imgsz 640 --name run2
+```
+Weights are saved to `runs/detect/run2/weights/best.pt`. The committed
+final model is `models/best .pt`.
+
+### 4. Export to ONNX (FP32)
+```bash
+python scripts/export_onnx.py
+```
+
+### 5. Verify ONNX output matches PyTorch
+```bash
+python scripts/verify_onnx.py
+```
+Runs inference through both `best.pt` and `best_quantized.onnx` on all
+18 validation images and reports box/confidence differences.
+
+### 6. Quantize to FP16
+Run on a CUDA-enabled environment (FP16 export requires GPU):
+```bash
+python scripts/quantize.py
+```
+
+### 7. Benchmark FP32 vs FP16
+```bash
+python scripts/benchmark.py
+```
+Reports mean/p95 latency, file size, and mAP@0.5 for both formats. Run
+once on CPU and once on a CUDA-enabled environment (with `onnxruntime-gpu`
+installed, not the default `onnxruntime` package) to reproduce both the
+CPU and GPU benchmark tables above.
+
+### Notes
+- Random seed fixed at 42 throughout (data split, training) for reproducibility.
+- Exact numbers may vary slightly (±1-2%) on different hardware; the
+  qualitative conclusions (FP16 helps size always, helps latency only on
+  GPU) should hold.
