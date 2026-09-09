@@ -135,6 +135,53 @@ MB) in all cases, useful for storage and transfer regardless of runtime
 speed.
 
 ---
+
+## A4 — Failure Analysis
+
+Annotated comparison images for all three failure cases (ground truth vs.
+prediction overlay) are available at `data/failure_images/` in this repository.
+
+### Image 1: 
+- **Predicted:** Only the case is detected (0.67 conf). The speaker is completely
+  missed — no detection at all, despite being clearly visible and centered in frame.
+- **Expected:** Two objects — speaker (large, centered) and case (bottom-left).
+- **Hypothesis:** Two contributing factors. First, the busy, patterned floral
+  background behind the speaker differs from the simpler backgrounds used in most
+  other training images. Second, and more specifically: most speaker training
+  images were captured from a distance, so the grill's perforated texture — a key
+  visual cue for this class — appears small and indistinct. The model likely
+  learned to associate "speaker" partly with the grill pattern being recognizable
+  at a certain scale; in this image, the pattern is present but was captured from
+  far enough that it may not have looked similar to what the model saw at training
+  scale, especially against the additional visual noise from the patterned
+  background.
+- **Fix:** Capture more speaker images with close-up, zoomed shots of the grill
+  texture specifically, so the model learns to recognize the grill pattern at
+  multiple scales — not just the distances most current training images were
+  captured at. Also add more speaker images against busier/patterned backgrounds.
+
+### Image 2:
+- **Predicted:** Speaker correctly detected (0.97 conf, accurate box). Two spurious
+  false-positive "case" detections (0.41, 0.34) on empty background/shadow regions.
+- **Expected:** Only the speaker — no case present in this frame.
+- **Hypothesis:** Model pattern-matches shadow/plain-surface texture as "case,"
+  likely due to insufficient negative/background-only training examples with
+  similar tone and low texture.
+- **Fix:** Add background-only negative training images; raise deployment
+  confidence threshold to ~0.5 to filter these low-confidence false positives.
+
+### Image 3: 
+- **Predicted:** Single speaker object split into three overlapping "speaker"
+  boxes (0.62, 0.57, 0.27) instead of one clean detection.
+- **Expected:** One speaker, filling nearly the entire frame.
+- **Hypothesis:** NMS/scale failure on an extreme close-up — different regions of
+  the object (top, middle, bottom) activate as separate detections that don't
+  overlap enough with each other to be merged by standard NMS thresholds.
+- **Fix:** Capture more extreme-close-up training examples so the model learns to
+  output a single confident box for full-frame objects; consider tuning NMS IoU
+  threshold for this deployment scenario.
+
+---  
 ## How to Reproduce
 
 ### 1. Environment setup
