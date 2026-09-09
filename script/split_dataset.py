@@ -3,6 +3,8 @@ Splits the annotated dataset into train/val sets.
 Run BEFORE any augmentation (augmentation is applied at training time only,
 via Ultralytics' training config), so no augmented crop of a val image
 can leak into training.
+
+Run from repo root: python script/split_dataset.py
 """
 
 import random
@@ -11,10 +13,10 @@ from pathlib import Path
 
 random.seed(42)  # fixed seed so the split is reproducible
 
-RAW_IMAGES = Path(r"E:\artikate\data\raw\images")
-RAW_LABELS = Path(r"E:\artikate\data\raw\labels")
-TRAIN_DIR = Path(r"E:\artikate\data\train")
-VAL_DIR = Path(r"E:\artikate\data\val")
+RAW_IMAGES = Path(r"data\raw\images")
+RAW_LABELS = Path(r"data\raw\labels")
+TRAIN_DIR = Path(r"data\train")
+VAL_DIR = Path(r"data\val")
 VAL_RATIO = 0.2
 
 

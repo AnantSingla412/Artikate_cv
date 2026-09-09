@@ -1,4 +1,4 @@
-# scripts/failure_comparison.py
+# script/failure_comparison.py
 """
 Draws ground-truth boxes (green) and model predictions (red) on the same
 image, so failure modes are immediately visible without cross-referencing
@@ -14,10 +14,10 @@ import os
 from pathlib import Path
 from ultralytics import YOLO
 
-MODEL_PATH = "../model/best.pt"
-VAL_IMAGES = "../data/val/images"
-VAL_LABELS = "../data/val/labels"
-OUT_DIR = "../benchmarks/failure_analysis"
+MODEL_PATH = "model/best.pt"
+VAL_IMAGES = "data/val/images"
+VAL_LABELS = "data/val/labels"
+OUT_DIR = "benchmarks/failure_analysis"
 IMGSZ = 640
 CONF_THRES = 0.25
 

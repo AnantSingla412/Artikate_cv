@@ -1,7 +1,8 @@
-# scripts/export_onnx.py
+# script/export_onnx.py
 """
 Exports the trained YOLOv8 model to ONNX format for inference via ONNX Runtime.
 
+Run from repo root: python script/export_onnx.py
 """
 
 from ultralytics import YOLO

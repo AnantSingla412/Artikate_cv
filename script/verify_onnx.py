@@ -1,15 +1,15 @@
-# scripts/verify_onnx.py
+# script/verify_onnx.py
 import numpy as np
 import glob
 from ultralytics import YOLO
 
 IMGSZ = 640
 
-img_paths = sorted(glob.glob(r"E:\artikate\data\val\images\*.jpg"))
+img_paths = sorted(glob.glob(r"data\val\images\*.jpg"))
 print(f"Testing on {len(img_paths)} validation images\n")
 
-pt_model = YOLO(r"E:\artikate\model\best.pt")
-onnx_model = YOLO(r"E:\artikate\model\best.onnx")
+pt_model = YOLO(r"model\best.pt")
+onnx_model = YOLO(r"model\best.onnx")
 
 all_box_diffs = []
 all_conf_diffs = []

@@ -184,6 +184,8 @@ prediction overlay) are available at `data/failure_images/` in this repository.
 ---  
 ## How to Reproduce
 
+Run every from root: python script/[file_name].py
+
 ### 1. Environment setup
 ```bash
 python -m venv venv
@@ -195,26 +197,26 @@ pip install -r requirements.txt
 Raw images and Roboflow-exported YOLO labels are already committed under
 `data/raw/`. Generate the train/val split:
 ```bash
-python scripts/split_dataset.py
+python script/split_dataset.py
 ```
 This creates `data/train/` and `data/val/` (75/18 images, seed=42).
 
 ### 3. Train the detector
 Training was run on Google Colab (Tesla T4 GPU). To reproduce:
 ```bash
-python scripts/train.py --epochs 100 --batch 16 --imgsz 640 --name run2
+python script/train.py --epochs 100 --batch 16 --imgsz 640 --name run2
 ```
 Weights are saved to `runs/detect/run2/weights/best.pt`. The committed
-final model is `models/best .pt`.
+final model is `model/best .pt`.
 
 ### 4. Export to ONNX (FP32)
 ```bash
-python scripts/export_onnx.py
+python script/export_onnx.py
 ```
 
 ### 5. Verify ONNX output matches PyTorch
 ```bash
-python scripts/verify_onnx.py
+python script/verify_onnx.py
 ```
 Runs inference through both `best.pt` and `best_quantized.onnx` on all
 18 validation images and reports box/confidence differences.
@@ -222,12 +224,12 @@ Runs inference through both `best.pt` and `best_quantized.onnx` on all
 ### 6. Quantize to FP16
 Run on a CUDA-enabled environment (FP16 export requires GPU):
 ```bash
-python scripts/quantize.py
+python script/quantize.py
 ```
 
 ### 7. Benchmark FP32 vs FP16
 ```bash
-python scripts/benchmark.py
+python script/benchmark.py
 ```
 Reports mean/p95 latency, file size, and mAP@0.5 for both formats. Run
 once on CPU and once on a CUDA-enabled environment (with `onnxruntime-gpu`
