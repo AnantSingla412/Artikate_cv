@@ -1,5 +1,7 @@
 # Artikate CV Assignment — Case & Speaker Detector
 
+Video Link :- https://drive.google.com/file/d/1IgUqCy6YKNZPMM7iRW5vXCyDBL5ITVR1/view?usp=sharing
+
 ## Overview
 Two-class object detector (case, speaker) trained on a self-captured dataset.
 
